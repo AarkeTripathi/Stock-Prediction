@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 import yahoo_fin.stock_info as yf
-import pickle
+import re
 
 model_name='human-centered-summarization/financial-summarization-pegasus'
 tokenizer=PegasusTokenizer.from_pretrained(model_name)
@@ -17,18 +17,15 @@ sym=list(sym)
 temp_lst=['TSLA','GOOG','ADE']
 
 def stock_info(ticker):
-    url="https://www.google.com/seach?q=yahoo+finance+{}&tbm=nws".format(ticker)
+    url=f"https://www.google.com/seach?q=yahoo+finance+{ticker}&tbm=nws"
     r=requests.get(url)
     soup=BeautifulSoup(r.text, 'html.parser')
     anchor_tags=soup.find_all('a')
     hrefs=[link['href'] for link in anchor_tags]
     return hrefs
 
-urls={ticker:stock_info(ticker) for ticker in sym}
 
-rubbish=['maps','policies','preferences','accounts','support']
 
-import re
 def remove_rubbish(urls, rubbish):
     lst=[]
     for url in urls:
@@ -37,7 +34,7 @@ def remove_rubbish(urls, rubbish):
             lst.append(res)
     return list(set(lst))
 
-cleaned_urls = {ticker:remove_rubbish(urls[ticker], rubbish) for ticker in sym}
+
 
 def scrape_and_process(urls):
     ARTICLES = []
@@ -51,7 +48,7 @@ def scrape_and_process(urls):
         ARTICLES.append(ARTICLE)
     return ARTICLES
 
-articles = {ticker:scrape_and_process(cleaned_urls[ticker]) for ticker in sym}
+
 
 def summarization(articles):
     summaries = []
@@ -62,21 +59,27 @@ def summarization(articles):
         summaries.append(summary)
     return summaries
 
-summarised_articles={ticker:summarization(articles[ticker]) for ticker in sym}
 
-scores = {ticker:sentiment(summarised_articles[ticker]) for ticker in sym}
-dic={}
-for ticker in mod:
-    counter=0
-    for i in scores[ticker]:
-        if(i['label']=='POSITIVE'):
-            counter=counter+1
-    num=len(scores[ticker])
-    if(counter>=num*0.5):
-        dic[ticker]=='POSITIVE'
-    else:
-        dic[ticker]=='NEGATIVE'
 
-pickle.dump(scores, open('model.pkl','wb'))
-mod=pickle.load(open('model.pkl','rb'))
+def search_stock():
+    urls={ticker:stock_info(ticker) for ticker in sym}
+    rubbish=['maps','policies','preferences','accounts','support']
+    cleaned_urls = {ticker:remove_rubbish(urls[ticker], rubbish) for ticker in sym}
+    articles = {ticker:scrape_and_process(cleaned_urls[ticker]) for ticker in sym}
+    summarised_articles={ticker:summarization(articles[ticker]) for ticker in sym}
+    scores = {ticker:sentiment(summarised_articles[ticker]) for ticker in sym}
+    dic={}
+    for ticker in sym:
+        counter=0
+        for i in scores[ticker]:
+            if(i['label']=='POSITIVE'):
+                counter=counter+1
+        num=len(scores[ticker])
+        if(counter>=num*0.5):
+            dic[ticker]='POSITIVE'
+        else:
+            dic[ticker]='NEGATIVE'
+    return dic
+
+
 
